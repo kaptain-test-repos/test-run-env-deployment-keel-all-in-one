@@ -1,0 +1,58 @@
+apiVersion: kaptain.org/1.2
+kind: kubernetes-run-environment
+spec:
+  global:
+    projectName:
+      stripRepositoryNamePrefix: test
+  contents:
+    - kubernetes-app-manifests-only:[1.0,2.0)
+    - kubernetes-bundle-resources:[1.31,2.0)
+  main:
+    environment:
+      deployMode: deployment
+      imageAutoUpdateProvider: keel
+      # Not in the draft schema yet: env applies its own cluster-scoped
+      # resources (cluster-admin role, all-in-one model).
+      clusterScopedDelegation: self
+      # Generated ConfigMap/Secret path: no supplied templates in
+      # src/environment, the build creates the ideal set itself.
+      generateIdealEnvironmentDeployManifests: true
+      checksumSecretsTiming: build
+      failOnUnreferencedConfigOrSecrets: true
+      # Explicit seed-and-compare: emits the marker manifest into the
+      # deploy-manifests set for the run-platform to act on.
+      imageDeployManifestsApplyMode: seed-and-compare
+      environmentDeployBaseImage:
+        registry: ghcr.io
+        namespace: kube-kaptain
+        family: trixie-slim
+        version: 1.0.13.1.34.1
+      # Coverage: policy enabled; the three name-matcher forms (exact,
+      # prefix glob, match-all); accumulating types count / age / none.
+      cleanUp:
+        policy: enabled
+        additionalResources:
+          - kind: Deployment
+            name: envoy-gateway
+          - kind: Secret
+            name: cert-manager-*
+          - kind: ServiceAccount
+            name: "*"
+        accumulatingResources:
+          jobs:
+            type: count
+            count: 5
+          configmaps:
+            type: age
+            age: 14d
+          secrets:
+            type: none
+    hooks:
+      preBuild: test-hooks/pre-build.bash
+      preTaggingTests: test-hooks/pre-tagging-tests.bash
+      postVersionsAndNaming: test-hooks/post-versions-and-naming.bash
+      preDockerPrepare: test-hooks/pre-docker-prepare.bash
+      postDockerTests: test-hooks/post-docker-tests.bash
+      prePackagePrepare: test-hooks/pre-package-prepare.bash
+      postPackageTests: test-hooks/post-package-tests.bash
+      postBuild: test-hooks/post-build.bash
